@@ -1,6 +1,7 @@
-program reproj
+program daily
 
 ! Read ASMR2 snow depth (SND) retrievals and reproject to 0.25-deg lat/lon grid 
+! and output daily mean
 
       use hdf5 
 
@@ -13,6 +14,7 @@ program reproj
       integer (kind=4), allocatable :: sm(:, :, :)
       real (kind=4), allocatable :: lon(:, :), lat(:, :) 
       real (kind=4) :: osm(nc, nr, nz), scalef
+      integer (kind=4) :: cnt(nc, nr, nz), nf, jf 
 
       ! declarations
       integer (kind=4) :: fid,swid,status,astat
@@ -31,22 +33,33 @@ program reproj
       integer(hid_t)                :: lon_id, lat_id 
       integer(hid_t)                :: dataspace
 
-      i =  iargc()
-      If (i.ne.2) Then   ! wrong cmd line args, print usage
-         write(*, *)"Usage:"
-         write(*, *)"reproj input_h5_file output_bin_file"
+      nf =  iargc()
+      If (nf.le.10) Then   ! too few input files. Assuming > 10 
+         write(*, *)"too few input files. At least 10."
          stop
       End If
 
-     call getarg(1, filename)
-     call getarg(2, ofile)
+     write(*, *) "number of input h5 files: ", nf-1 
+     !output file name
+     call getarg(1, ofile)
+   
+   osm = 0.0 
+   cnt = 0 
+
+   Do jf=2, nf 
+     
+     call getarg(jf, filename)
       
+      write(*, *) "reading ", trim(filename) 
       !======= open the interface 
       call h5open_f(status) 
       if (status .ne. 0) write(*, *) "Failed to open HDF interface" 
       
       call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, status) 
-      if (status .ne. 0) write(*, *) "Failed to open HDF file" 
+      if (status .ne. 0) then 
+         write(*, *) "Failed to open HDF file" 
+         go to 999
+      end if 
       
       call h5gopen_f(file_id,sm_gr_name,sm_gr_id, status)
       if (status .ne. 0) write(*, *) "Failed to get group: ", sm_gr_name 
@@ -66,11 +79,11 @@ program reproj
       call h5aread_f(attr_id, H5T_NATIVE_REAL, scalef, dims, status) 
       if (status .ne. 0) write(*, *) "Failed to read attribute" 
 
-
       nx = dims(3) 
       ny = dims(2) 
       nv = dims(1) 
-      write(*, *)"nx = ", nx, " ny= ", ny, " nv=", nv, " scalef=", scalef
+      ! write(*, *)"nx = ", nx, " ny= ", ny, " nv=", nv, " scalef=", scalef
+
       allocate(sm(nv, ny, nx)) 
       allocate(lat(ny, nx)) 
       allocate(lon(ny, nx)) 
@@ -91,11 +104,9 @@ program reproj
       if (status .ne. 0) write(*, *) "Failed to read lat" 
 
       call h5fclose_f(file_id, status)  
-      call h5close_f(status) 
 
       !write(*, *) sm
 
-      osm = -9999.0
       ! reprojection
       do k=1, nv
        do j=1, ny 
@@ -103,9 +114,33 @@ program reproj
              ir = nint ( (lat(j, i) - lat0 )/res ) + 1
              ic = nint ( (lon(j, i) - lon0 )/res ) + 1
              value = sm(k, j, i)
-             if ( value .GE. 0 ) osm(ic, ir, k) = value*scalef
+             if ( value .GE. 0 ) then 
+                 osm(ic, ir, k) = osm(ic, ir, k) + value*scalef
+                 cnt(ic, ir, k) = cnt(ic, ir, k) + 1 
+             end if 
          end do 
       end do 
+      end do 
+
+      deallocate(sm) 
+      deallocate(lat) 
+      deallocate(lon)
+
+999      call h5close_f(status) 
+
+    End do ! jf
+
+     ! mean  values 
+      do k=1, nz
+       do j=1, nr 
+        do i=1, nc 
+           if (cnt(i, j, k) .GE. 1 ) then  ! there are values 
+             osm(i, j, k) = osm(i, j, k) / real(cnt(i,  j, k)) 
+           else 
+             osm(i, j, k) = -9999.0 
+           end if 
+        end do 
+       end do 
       end do 
 
       write(*, *) "Saving binary format ...", nc, nr
@@ -114,8 +149,4 @@ program reproj
       close(22) 
        
 
-      deallocate(sm) 
-      deallocate(lat) 
-      deallocate(lon)
-
-end program reproj 
+end program daily 
