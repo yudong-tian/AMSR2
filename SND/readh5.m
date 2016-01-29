@@ -1,0 +1,3 @@
+
+data=h5read('2012/12/GW1AM2_201212312330_169A_L2SGSNDLG2210210.h5', '/Geophysical Data');
+
