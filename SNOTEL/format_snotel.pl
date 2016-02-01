@@ -8,6 +8,8 @@ use File::Basename;
 
 $minlines=1215;  # minimum number of lines a snotel file has to have to be valid  
 
+$type=1;   # 1: SNOTEL; 100: GPS
+
 if ( $#ARGV != 0 ) {
  print "usage: $0 <filelist> \n"; 
  exit;
@@ -69,10 +71,10 @@ $filelist = $ARGV[0];
      ($ymd, $swe, $snd, $ppt_daily, $tmp, $tmp_max, $tmp_min, $tmp_avg) 
        = split /,/, $line; 
      if ($ymd =~ /^[12][0-9]{3}-[0-9]{2}-[0-9]{2}$/) {
-         $swe = $swe * 2.54; 
+         $swe = $swe * 2.54;  # inch to cm
          $snd = $snd * 2.54; 
          ($yy, $mm, $dd) = split /-/, $ymd; 
-         print ODATA "$lats{$stn_id} $lons{$stn_id} $elev{$stn_id} $yy $mm $dd $snd $swe\n"; 
+         print ODATA "$lats{$stn_id} $lons{$stn_id} $elev{$stn_id} $yy $mm $dd $snd $swe $type\n"; 
      } else { 
        print "Skiping $line\n"; 
      }
